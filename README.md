@@ -6,11 +6,10 @@ Supporting Software for Cymbet-Eval-06 USB-based Real Time Clock
 All software here depends on a system with working FTDI drivers and a working installation of libmpsse
 from google code: http://code.google.com/p/libmpsse/
 
-NOTE: The software isn't ready yet, so this README is currently a place holder. I have preliminary code up. I know it
-doesn't yet work completely correctly. I'm actuaally going to start over and develop a better set of functions
-from scratch now that I understand the task better.
+NOTE: The software is in early Alpha Test. I believe it now works, and provides minimal functionality
+for readclock and setclock. setSystemTime is not yet written, but will be built from readclock.
 
-If you download the preliminary code, feedback, bug reports, and most of all suggested patches are highly encouraged.
+If you download the code, feedback, bug reports, and most of all suggested patches are highly encouraged.
 
 Installation
 ============
