@@ -15,11 +15,22 @@
    <http://www.gnu.org/licenses/>.  */
 
 #include <pcf2123.h>
-
 #include <stdarg.h>
+#include <time.h>
+
 void debug(int lvl, char *fmt, ...);
 
 #define DEBUG 99
+
+/* Delay 30 nanoseconds to let RTC catch up after each operation */
+void delay_rtc_trec()
+{
+  struct timespec tv;
+
+  tv.tv_sec=0;
+  tv.tv_nsec=30;
+  nanosleep(&tv, NULL);
+}
 
 /* Connect to the clock and return a valid handle. Returns NULL on failure. */
 struct mpsse_context *OpenClock(int VID, int PID, uint32_t FREQ)
@@ -50,7 +61,7 @@ int ResetClock(struct mpsse_context *clock_handle)
   debug(5, "ResetClock\n");
   c[0] = CLOCK_RESET;
   rv=WriteClock(clock_handle, 0, c, 1);
-  sleep(1);
+  delay_rtc_trec();
   return(rv);
 }
 
@@ -66,6 +77,7 @@ char *ReadClock(struct mpsse_context *clock_handle, unsigned char start, int siz
   Write(clock_handle, c, 1);
   rv = Read(clock_handle, size);
   Stop(clock_handle);
+  delay_rtc_trec();
   return(rv);
 }
 
@@ -81,6 +93,7 @@ int WriteClock(struct mpsse_context *clock_handle, unsigned char start, char *bu
   Write(clock_handle, c, 1);
   rv = Write(clock_handle, buffer, size);
   Stop(clock_handle);
+  delay_rtc_trec();
   return(rv);
 }
 
@@ -97,10 +110,15 @@ int StartOscillator(struct mpsse_context *clock_handle)
 
   debug(5, "StartOscillator\n");
   c[0]=CLOCK_READ;		/* Read current Control1 values */
+  debug(10, "\tStart\n");
   Start(clock_handle);
+  debug(10, "\tWriteCommand\n");
   Write(clock_handle, c, 1);
+  debug(10, "\tReadData\n");
   buf = Read(clock_handle, 1);
+  debug(10, "\tStop\n");
   Stop(clock_handle);
+  delay_rtc_trec();
   debug(9, "\tRetrieved: %02x from Control1\n", buf[0]);
   c[0]=CLOCK_WRITE | 0x00;	/* Clear STOP flag in Control1 */
   buf[0] &= 0xdf;
@@ -110,11 +128,13 @@ int StartOscillator(struct mpsse_context *clock_handle)
   Write(clock_handle, buf, 1);
   Stop(clock_handle);
   free(buf);			/* free buffer from previous operations */
+  delay_rtc_trec();
   c[0]=CLOCK_READ | 0x02;	/* Read current Seconds register */
   Start(clock_handle);
   Write(clock_handle, c, 1);
   buf = Read(clock_handle, 1);
   Stop(clock_handle);
+  delay_rtc_trec();
   debug(9, "\tRetrieved: %02x from OS/Seconds\n", buf[0]);
   c[0]=CLOCK_WRITE | 0x02;	/* Attempt to clear OS flag in Seconds register */
   buf[0] &= 0x7f;
@@ -124,10 +144,13 @@ int StartOscillator(struct mpsse_context *clock_handle)
   Write(clock_handle, buf, 1);
   Stop(clock_handle);
   free(buf);			/* free buffer from previous operations */
+  delay_rtc_trec();
   c[0]=CLOCK_READ | 0x02;	/* Read Seconds register to verify OS Cleared */
   Start(clock_handle);
   Write(clock_handle, c, 1);
   buf = Read(clock_handle, 1);
+  Stop(clock_handle);
+  delay_rtc_trec();
   debug(7, "\tResulting OS/Seconds: %d\n", buf[0]);
   rv=0;				/* Prepare return value */
   if (buf[0] & 0x80) rv=-1;
@@ -154,6 +177,7 @@ int StopOscillator(struct mpsse_context *clock_handle)
   buf = Read(clock_handle, 1);
   debug(9, "\tRetrieved: %02x from Control1\n", buf[0]);
   Stop(clock_handle);
+  delay_rtc_trec();
   c[0]=CLOCK_WRITE;		/* Prepare to Write new value to Control1 Register */
   buf[0] |= 0x20;		/* Bring STOP flag high in Control1 Register */
   debug(9, "\tSetting: %02x to Control1\n", buf[0]);
@@ -161,11 +185,14 @@ int StopOscillator(struct mpsse_context *clock_handle)
   Write(clock_handle, c, 1);
   Write(clock_handle, buf, 1);	/* Write out new value */
   Stop(clock_handle);
+  delay_rtc_trec();
   free(buf);
   c[0]=CLOCK_READ | 0x00;	/* Read in the Control1 Register */
   Start(clock_handle);
   Write(clock_handle, c, 1);
   buf = Read(clock_handle, 1);
+  Stop(clock_handle);
+  delay_rtc_trec();
   debug(9, "\tResulting: %02x in Control1\n", buf[0]);
   rv=0;				/* Prepare return value */
   if (buf[0] & 0x20) rv=-1;

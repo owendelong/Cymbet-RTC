@@ -6,3 +6,8 @@ all:	readclock setclock
 readclock:	readclock.o pcf2123.o
 setclock:	setclock.o pcf2123.o
 
+clean:
+	rm *.o
+	rm readclock
+	rm setclock
+
