@@ -1,15 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpsse.h>
 #include <string.h>
 #include <time.h>
 #include <sys/types.h>
+#include <pcf2123.h>
 
 
-#define MAX_CLOCK_SPI_CLK	0.25
-#define CLOCK_RESET "\x10\x58"
-#define CLOCK_READ(register) 0x90 | (register & 0x0f)
-#define CLOCK_WRITE(register) 0x10 | (register & 0x0f)
 #define READ_SIZE	16
 
 
@@ -22,7 +18,6 @@ unsigned char tobcd(int value);
 
 int main(int ARGC, char **ARGV, char **ENVP)
 {
-	FILE *fp = NULL;
 	char *data;
         /*                       1          2   */
 	/*             01 34 67 90 23 56 78 012 */
@@ -31,60 +26,27 @@ int main(int ARGC, char **ARGV, char **ENVP)
 	char *wday = "SUNMONTUEWEDTHUFRISAT";
 	int retval = EXIT_FAILURE;
 	struct mpsse_context *clock = NULL;
-        char CMD[3];
 	struct tm *gt;
 	time_t t;
 	struct timespec tv;
 
-	CMD[0]=CLOCK_WRITE(0) >> 8;
-	CMD[1]=CLOCK_WRITE(0) && 0xff;
-
-	if((clock = MPSSE(SPI0, (MAX_CLOCK_SPI_CLK) * 1000000, MSB)) != NULL && clock->open)
+	if(clock = OpenClock(0,0,0))
 	{
 		printf("%s initialized at %dHz (SPI mode 0)\n", GetDescription(clock), GetClock(clock));
-		SetCSIdle(clock, 0);
-		Start(clock);
-		Write(clock, CLOCK_RESET, sizeof(CLOCK_RESET) - 1);
-		printf("Reset clock\n");
-		Stop(clock);
-
-		/* Check oscillator running */
-		CMD[0]=CLOCK_WRITE(2) >> 8;
-		CMD[1]=CLOCK_WRITE(2) && 0xff;
-		Start(clock);
-		Write(clock, CMD, sizeof(CMD) - 1);
-		/* Clear seconds and STOP flag */
-		Write(clock, "\0", 1);
-		Stop(clock);
+		ResetClock(clock);
 
 		printf("Check Oscillator Running: ");
-		CMD[0]=CLOCK_READ(2) >> 8;
-		CMD[1]=CLOCK_READ(2) && 0xff;
-		Start(clock);
-		Write(clock, CMD, sizeof(CMD) - 1);
-		data = Read(clock, 1);
-		Stop(clock);
-		if (data)
+		if(StartOscillator(clock))
 		{
-			if (data[0] & 0x80)
-			{
-				printf("NO!\n");
-				fprintf(stderr, "Warning: Oscillator not running.\n");
-			}
-			else
-			{
-				printf("Yes.\n");
-			}
+			printf("NO!\n");
+			fprintf(stderr, "Warning: Oscillator not running.\n");
 		}
 		else
 		{
-			printf("???\n");
-			fprintf(stderr, "Warning: Could not read Oscillator status.\n");
+			printf("Yes.\n");
 		}
 
 		/* Set Clock */
-		CMD[0]=CLOCK_WRITE(0) >> 8;
-		CMD[1]=CLOCK_WRITE(0) && 0xff;
 		if (ARGC != 1)
 		{
 			/* Parse time from args */
@@ -101,6 +63,17 @@ int main(int ARGC, char **ARGV, char **ENVP)
 					gt->tm_mon + 1, gt->tm_mday, gt->tm_year+1900, gt->tm_hour, gt->tm_min, gt->tm_sec);
 			
 		}
+		data = ReadClock(clock, 0, READ_SIZE);
+		if(data)
+		{
+			printf("Raw data read out from clock: C1=%02x C2=%02x SEC=%02x MIN=%02x HR=%02x DAY=%02x DOW=%02x MON=%02x YR=%02x AMIN=%02x AHR=%02x ADY=%02x ADOW=%02x OFFSET=%02x TCO=%02x CDN=%02x\n",
+				 data[0],  data[1],  data[2],  data[3],
+				 data[4],  data[5],  data[6],  data[7],
+				 data[8],  data[9], data[10], data[11],
+				data[12], data[13], data[14], data[15]
+			);
+		}
+		free(data);
 		/* Update clock registers */
 		data = malloc(32);
 		/*	Control 1 */
@@ -138,32 +111,31 @@ int main(int ARGC, char **ARGV, char **ENVP)
 			data[12], data[13], data[14], data[15]
 		);
 		printf("Data loaded into buffer, writing to clock...\n");
-		Start(clock);
-		Write(clock, CMD, sizeof(CMD) - 1);
-		Write(clock, data, 16);
-		Stop(clock);
+		StopOscillator(clock);
+		WriteClock(clock, 0, data, READ_SIZE);
+		free(data);
+		data = ReadClock(clock, 0, READ_SIZE);
+		if(data)
+		{
+			printf("Raw data read back from clock: C1=%02x C2=%02x SEC=%02x MIN=%02x HR=%02x DAY=%02x DOW=%02x MON=%02x YR=%02x AMIN=%02x AHR=%02x ADY=%02x ADOW=%02x OFFSET=%02x TCO=%02x CDN=%02x\n",
+				 data[0],  data[1],  data[2],  data[3],
+				 data[4],  data[5],  data[6],  data[7],
+				 data[8],  data[9], data[10], data[11],
+				data[12], data[13], data[14], data[15]
+			);
+		};
 		printf("Done!\n");
-		CMD[0] = CLOCK_WRITE(2) >> 8;
-		CMD[1] = CLOCK_WRITE(2) && 0xff;
-		data[0] = tobcd(gt->tm_sec);
 		tv.tv_sec = 0;
 		tv.tv_nsec = 490 * 1000 * 1000; /* 490 milliseconds expressed as nanoseconds */
-		/* Wait for time to strt the clock */
-		while (time(NULL) < t);
-		/* Must wait an additional 1/2 second before starting clock */
-		Start(clock);
-		Write(clock, CMD, sizeof(CMD) - 1);
-		nanosleep(&tv, NULL);
-		Write(clock, data, 1);
-		Stop(clock);
-		free(data);
-
-		
-		CMD[0]=CLOCK_READ(0) >> 8;
-		CMD[1]=CLOCK_READ(0) && 0xff;
-		Start(clock);
-		Write(clock, CMD, sizeof(CMD) - 1);
-		data = Read(clock, READ_SIZE);
+		if(ARGC == 1)
+		{
+			/* Wait for time to strt the clock */
+			while (time(NULL) < t);
+			/* Must wait an additional 1/2 second before starting clock */
+			nanosleep(&tv, NULL);
+		}
+		StartOscillator(clock);
+		data = ReadClock(clock, 0, READ_SIZE);
 		if(data)
 		{
 			printf("Raw data returned from clock: C1=%02x C2=%02x SEC=%02x MIN=%02x HR=%02x DAY=%02x DOW=%02x MON=%02x YR=%02x AMIN=%02x AHR=%02x ADY=%02x ADOW=%02x OFFSET=%02x TCO=%02x CDN=%02x\n",
@@ -182,7 +154,7 @@ int main(int ARGC, char **ARGV, char **ENVP)
 				(data[0] & 0x02 ? "CIE" : "cie")
 			);
 			/* Control 2 */
-			printf("\tControl_2: %s %s %s %s %s %s %s %sn",
+			printf("\tControl_2: %s %s %s %s %s %s %s %s\n",
 				(data[1] & 0x80 ? "MI" : "mi"),
 				(data[1] & 0x40 ? "SI" : "si"),
 				(data[1] & 0x20 ? "MSF" : "msf"),
@@ -193,7 +165,14 @@ int main(int ARGC, char **ARGV, char **ENVP)
 				(data[1] & 0x01 ? "TIE" : "tie")
 			);
 			/* Seconds & Oscillator Integrity */
-			if (data[2] & 0x80) printf("Oscillator (was) Stopped\n");
+			if (data[2] & 0x80)
+			{
+				printf("Oscillator (was) Stopped\n");
+			}
+			else
+			{
+				printf("Oscellator Valid\n");
+			}
         /*                       1          2   */
 	/*             01 34 67 90 23 56 89 123 */
         /*            "00/00/00 00:00:00 AM DOW"*/

@@ -2,10 +2,8 @@
 #include <stdlib.h>
 #include <mpsse.h>
 #include <string.h>
+#include <pcf2123.h>
 
-#define MAX_CLOCK_SPI_CLK	5
-#define CLOCK_RESET "\x10\x58"
-#define CLOCK_READ(register) 0x90 | (register & 0x0f)
 #define READ_SIZE	16
 
 
@@ -25,37 +23,18 @@ int main(void)
 	char *wday = "SUNMONTUEWEDTHUFRISAT";
 	int retval = EXIT_FAILURE;
 	struct mpsse_context *clock = NULL;
-        char CMD[2];
 
-	CMD[0]=CLOCK_READ(0) >> 8;
-	CMD[1]=CLOCK_READ(0) && 0xff;
-
-	if((clock = MPSSE(SPI0, (MAX_CLOCK_SPI_CLK) * 1000000, MSB)) != NULL && clock->open)
+	if(clock = OpenClock(0, 0, 0))
 	{
 		printf("%s initialized at %dHz (SPI mode 0)\n", GetDescription(clock), GetClock(clock));
-		SetCSIdle(clock, 0);
-		Start(clock);
-		Write(clock, CLOCK_RESET, sizeof(CLOCK_RESET) - 1);
+		ResetClock(clock);
 		printf("Reset clock\n");
-		Stop(clock);
-	}
-	Close(clock);
-
-    while(1)
-    {
-	if((clock = Open(0x0403, 0x6010,SPI0, (MAX_CLOCK_SPI_CLK) * 1000000, MSB,IFACE_A, NULL, NULL)) != NULL && clock->open)
-	{
-		SetCSIdle(clock, 0);
-		printf("%s initialized at %dHz (SPI mode 0)\n", GetDescription(clock), GetClock(clock));
-		
-		Start(clock);
-		Write(clock, CMD, sizeof(CMD) - 1);
-		data = Read(clock, READ_SIZE);
-		Stop(clock);
-
-		
-		if(data)
+		while(1)
 		{
+		    data=ReadClock(clock, 0, 16);
+		
+		    if(data)
+		    {
 			printf("Raw data returned from clock: C1=%02x C2=%02x SEC=%02x MIN=%02x HR=%02x DAY=%02x DOW=%02x MON=%02x YR=%02x AMIN=%02x AHR=%02x ADY=%02x ADOW=%02x OFFSET=%02x TCO=%02x CDN=%02x\n",
 				 data[0],  data[1],  data[2],  data[3],
 				 data[4],  data[5],  data[6],  data[7],
@@ -121,20 +100,17 @@ int main(void)
 			time[7]  = (data[8] & 0x0f) + 0x30;
 			/* Print it all out */
 			printf("\tTime: %s", time);
-		}
-		else
-		{
+			free(data);
+		    }
+		        else
+		    {
 			printf("Failed to obtain data from MPESSE SPI interface: %s\n", ErrorString(clock));
+		    }
+		    sleep(1);
 		}
-	}
-	else
-	{
-		printf("Failed to initialize MPSSE SPI to Clock: %s\n", ErrorString(clock));
-	}
 
-	Close(clock);
-	sleep(1);
+		Close(clock);
     }
 
-    return retval;
+    return(retval);
 }
