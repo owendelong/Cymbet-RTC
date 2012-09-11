@@ -20,7 +20,7 @@
 
 void debug(int lvl, char *fmt, ...);
 
-#define DEBUG 99
+#define DEBUG 0
 
 /* Delay 30 nanoseconds to let RTC catch up after each operation */
 void delay_rtc_trec()

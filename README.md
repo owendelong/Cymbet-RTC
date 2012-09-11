@@ -6,8 +6,9 @@ Supporting Software for Cymbet-Eval-06 USB-based Real Time Clock
 All software here depends on a system with working FTDI drivers and a working installation of libmpsse
 from google code: http://code.google.com/p/libmpsse/
 
-NOTE: The software is in early Alpha Test. I believe it now works, and provides minimal functionality
-for readclock and setclock. setSystemTime is not yet written, but will be built from readclock.
+First RELEASE CANDIDATE
+This code is still in Alpha Test, but I believe all base functionality is now included.
+(taking a command line time argument for setclock still to be done).
 
 If you download the code, feedback, bug reports, and most of all suggested patches are highly encouraged.
 
@@ -17,17 +18,17 @@ Installation
 1. Dependencies
   A. Working FTDI drivers
     Plug in your RTC board and issue the lsusb command. If you do not see a line like:
-    Then you probably don't have working drivers.
 .
 Bus ??? Device ???: ID 0403:6010 Future Technology Devices International, Ltd FT2232C Dual USB-UART/FIFO IC
 .
+    Then you probably don't have working drivers.
+
     (At the very least, you should see some enumeration of a device with ID 0403:6010 or this isn't going to work.)
     
     If you have more than one such line, you may need to alter the Opening sequence in the software to
     ensure connection to the correct device.
   
   B. Google Code libmpsse
-.
     Download from http://code.google.com/p/libmpsse/ if you don't already have it.
     After unpacking, the relevant software will be in libmpsse-1.2/src
     Change into that directory and follow the directions in ../docs/INSTALL

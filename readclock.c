@@ -51,7 +51,7 @@ int main(void)
 				(data[0] & 0x02 ? "CIE" : "cie")
 			);
 			/* Control 2 */
-			printf("\tControl_2: %s %s %s %s %s %s %s %sn",
+			printf("\tControl_2: %s %s %s %s %s %s %s %s\n",
 				(data[1] & 0x80 ? "MI" : "mi"),
 				(data[1] & 0x40 ? "SI" : "si"),
 				(data[1] & 0x20 ? "MSF" : "msf"),
